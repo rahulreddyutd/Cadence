@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cadence — a calmer task tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ---------- design tokens ---------- */
+  :root{
+    --paper:#F4F1E9;
+    --surface:#FFFFFF;
+    --surface-2:#FBFAF5;
+    --ink:#211D16;
+    --muted:#766E5F;
+    --faint:#A39A88;
+    --line:#E7E1D3;
+    --line-strong:#D8D0BE;
+    --accent:#3F5C4A;
+    --accent-ink:#2C4234;
+    --accent-soft:#E6EEE8;
+    --overdue:#AA4733;
+    --overdue-soft:#F6E6E0;
+    --today:#946317;
+    --today-soft:#F4EAD4;
+    --low:#6E7A8A;
+    --radius:14px;
+    --radius-sm:10px;
+    --shadow:0 1px 2px rgba(33,29,22,.04), 0 8px 24px -16px rgba(33,29,22,.18);
+    --shadow-lg:0 24px 60px -24px rgba(33,29,22,.30);
+    --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Hanken Grotesk",sans-serif;
+    background:
+      radial-gradient(120% 80% at 100% 0%, #F8F5ED 0%, rgba(248,245,237,0) 55%),
+      radial-gradient(120% 90% at 0% 100%, #EFEBDF 0%, rgba(239,235,223,0) 50%),
+      var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    letter-spacing:-.005em;
+  }
+  ::selection{background:var(--accent-soft)}
+
+  .wrap{max-width:760px;margin:0 auto;padding:clamp(24px,5vw,56px) clamp(16px,4vw,28px) 96px}
+
+  /* ---------- header ---------- */
+  header.app{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:28px}
+  .brand{display:flex;flex-direction:column;gap:2px}
+  .brand .mark{font-family:"Fraunces",serif;font-weight:500;font-size:clamp(28px,6vw,38px);line-height:1;letter-spacing:-.02em}
+  .brand .mark em{font-style:italic;color:var(--accent)}
+  .brand .sub{font-size:13px;color:var(--muted);letter-spacing:.01em}
+  .progress{display:flex;align-items:center;gap:12px;flex-shrink:0}
+  .ring{position:relative;width:46px;height:46px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+  .progress .meta{text-align:right;line-height:1.25}
+  .progress .meta .big{font-weight:600;font-size:14px}
+  .progress .meta .small{font-size:12px;color:var(--muted)}
+
+  /* ---------- capture ---------- */
+  .capture{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:6px 6px 6px 18px;display:flex;align-items:center;gap:10px;transition:border-color .2s var(--ease),box-shadow .2s var(--ease)}
+  .capture:focus-within{border-color:var(--line-strong);box-shadow:0 1px 2px rgba(33,29,22,.05),0 12px 30px -18px rgba(33,29,22,.28)}
+  .capture .plus{color:var(--faint);font-size:20px;line-height:1;flex-shrink:0}
+  .capture input{flex:1;border:0;outline:0;background:transparent;font-family:inherit;font-size:16px;color:var(--ink);padding:14px 0}
+  .capture input::placeholder{color:var(--faint)}
+  .capture button.add{flex-shrink:0;background:var(--accent);color:#fff;border:0;border-radius:10px;height:42px;padding:0 18px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;transition:background .18s var(--ease),transform .12s var(--ease)}
+  .capture button.add:hover{background:var(--accent-ink)}
+  .capture button.add:active{transform:scale(.97)}
+  .capture button.add:disabled{opacity:.6;cursor:default}
+
+  .interpret{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:22px;margin:10px 4px 0;font-size:13px;color:var(--muted);transition:opacity .2s}
+  .interpret .arrow{color:var(--faint)}
+  .chip{display:inline-flex;align-items:center;gap:5px;background:var(--accent-soft);color:var(--accent-ink);border-radius:999px;padding:3px 10px;font-weight:600;font-size:12.5px}
+  .chip.t{background:var(--today-soft);color:var(--today)}
+
+  /* low-confidence confirmation card */
+  .confirm{margin-top:12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;animation:rise .28s var(--ease)}
+  .confirm .lead{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:7px;margin-bottom:10px}
+  .confirm .lead .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .confirm .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .confirm .ttl{font-weight:600;font-size:15px}
+  .confirm .acts{display:flex;gap:8px;margin-left:auto}
+  .btn{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font-family:inherit;font-weight:600;font-size:13px;border-radius:9px;padding:8px 14px;cursor:pointer;transition:.15s var(--ease)}
+  .btn:hover{background:var(--surface-2)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:var(--accent-ink)}
+  .btn.ghost{border-color:transparent;color:var(--muted)}
+  .btn.ghost:hover{color:var(--ink);background:var(--surface-2)}
+
+  /* ---------- ai actions ---------- */
+  .toolbar{display:flex;align-items:center;gap:10px;margin:22px 0 14px;flex-wrap:wrap}
+  .ai-btn{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:9px 15px;font-family:inherit;font-weight:600;font-size:13.5px;color:var(--ink);cursor:pointer;box-shadow:var(--shadow);transition:.16s var(--ease)}
+  .ai-btn:hover{border-color:var(--line-strong);transform:translateY(-1px)}
+  .ai-btn:active{transform:translateY(0)}
+  .ai-btn:disabled{opacity:.55;cursor:default;transform:none}
+  .ai-btn .glyph{color:var(--accent)}
+  .ai-btn .spin{width:14px;height:14px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+  .toolbar .clear-pri{margin-left:auto;font-size:12.5px;color:var(--faint);background:none;border:0;cursor:pointer;font-family:inherit;font-weight:600}
+  .toolbar .clear-pri:hover{color:var(--muted)}
+
+  /* ---------- filters ---------- */
+  .filters{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:18px}
+  .filters button{flex:1;border:0;background:transparent;font-family:inherit;font-weight:600;font-size:13.5px;color:var(--muted);padding:9px 10px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:.16s var(--ease)}
+  .filters button:hover{color:var(--ink)}
+  .filters button.active{background:var(--surface-2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+  .filters .count{font-size:11.5px;font-weight:700;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--paper);color:var(--muted);display:inline-flex;align-items:center;justify-content:center}
+  .filters button.active .count{background:var(--accent-soft);color:var(--accent-ink)}
+  .filters button[data-f="overdue"].active .count{background:var(--overdue-soft);color:var(--overdue)}
+
+  /* ---------- task list ---------- */
+  .list{display:flex;flex-direction:column;gap:9px}
+  .group-label{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin:14px 2px 2px}
+  .group-label:first-child{margin-top:0}
+
+  .task{display:flex;align-items:flex-start;gap:13px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow);position:relative;transition:border-color .18s var(--ease),transform .12s var(--ease),opacity .2s}
+  .task:hover{border-color:var(--line-strong)}
+  .task.overdue{border-left:3px solid var(--overdue)}
+  .task.today{border-left:3px solid var(--today)}
+  .task.done{opacity:.62}
+  .task.removing{opacity:0;transform:translateX(8px)}
+
+  .check{flex-shrink:0;width:21px;height:21px;border-radius:7px;border:2px solid var(--line-strong);background:var(--surface-2);cursor:pointer;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:.15s var(--ease)}
+  .check:hover{border-color:var(--accent)}
+  .check.on{background:var(--accent);border-color:var(--accent)}
+  .check.on svg{opacity:1;transform:scale(1)}
+  .check svg{opacity:0;transform:scale(.5);transition:.18s var(--ease)}
+
+  .body{flex:1;min-width:0}
+  .ttl-line{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .ttl-text{font-size:15.5px;font-weight:500;word-break:break-word}
+  .done .ttl-text{text-decoration:line-through;text-decoration-color:var(--faint);color:var(--muted)}
+  .meta-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:12.5px;color:var(--muted)}
+  .due{display:inline-flex;align-items:center;gap:5px}
+  .due.is-overdue{color:var(--overdue);font-weight:600}
+  .due.is-today{color:var(--today);font-weight:600}
+  .due svg{opacity:.7}
+
+  .pri{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+  .pri .pdot{width:6px;height:6px;border-radius:50%}
+  .pri.high{background:var(--overdue-soft);color:var(--overdue)}
+  .pri.high .pdot{background:var(--overdue)}
+  .pri.medium{background:var(--today-soft);color:var(--today)}
+  .pri.medium .pdot{background:var(--today)}
+  .pri.low{background:#EBEEF2;color:var(--low)}
+  .pri.low .pdot{background:var(--low)}
+  .pri-reason{font-size:12.5px;color:var(--muted);font-weight:500;line-height:1.4}
+
+  .row-acts{display:flex;gap:2px;flex-shrink:0;opacity:0;transition:opacity .15s}
+  .task:hover .row-acts,.task:focus-within .row-acts{opacity:1}
+  .icon-btn{width:30px;height:30px;border:0;background:transparent;border-radius:8px;color:var(--faint);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.14s var(--ease)}
+  .icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+  .icon-btn.danger:hover{background:var(--overdue-soft);color:var(--overdue)}
+  @media (hover:none){.row-acts{opacity:1}}
+
+  /* inline editor */
+  .editor{flex:1;display:flex;flex-direction:column;gap:10px}
+  .editor input[type=text]{border:1px solid var(--line-strong);border-radius:9px;padding:10px 12px;font-family:inherit;font-size:15px;color:var(--ink);outline:0}
+  .editor input[type=text]:focus{border-color:var(--accent)}
+  .editor .fields{display:flex;gap:8px;flex-wrap:wrap}
+  .editor .fields input{border:1px solid var(--line-strong);border-radius:9px;padding:9px 11px;font-family:inherit;font-size:13.5px;color:var(--ink);outline:0;color-scheme:light}
+  .editor .fields input:focus{border-color:var(--accent)}
+  .editor .ed-acts{display:flex;gap:8px}
+
+  /* ---------- empty state ---------- */
+  .empty{text-align:center;padding:54px 24px;color:var(--muted)}
+  .empty .ico{width:52px;height:52px;margin:0 auto 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--faint);box-shadow:var(--shadow)}
+  .empty h3{font-family:"Fraunces",serif;font-weight:500;font-size:19px;color:var(--ink);margin-bottom:5px;letter-spacing:-.01em}
+  .empty p{font-size:14px;max-width:340px;margin:0 auto;line-height:1.55}
+
+  /* ---------- modal / plan ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(33,29,22,.32);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .25s var(--ease)}
+  .overlay.show{opacity:1;pointer-events:auto}
+  @media(min-width:640px){.overlay{align-items:center}}
+  .sheet{background:var(--paper);border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:88vh;overflow:auto;box-shadow:var(--shadow-lg);transform:translateY(24px);transition:transform .3s var(--ease);border:1px solid var(--line)}
+  @media(min-width:640px){.sheet{border-radius:20px}}
+  .overlay.show .sheet{transform:translateY(0)}
+  .sheet-head{position:sticky;top:0;background:var(--paper);padding:22px 24px 12px;display:flex;flex-direction:column;gap:14px;z-index:2;border-bottom:1px solid var(--line)}
+  .sheet-head .head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .sheet-head h2{font-family:"Fraunces",serif;font-weight:500;font-size:24px;letter-spacing:-.02em}
+  .sheet-head .when{font-size:13px;color:var(--muted);margin-top:2px}
+  .day-tabs{display:flex;gap:6px;overflow-x:auto;margin:0 -2px;padding:1px 2px 3px;scrollbar-width:none}
+  .day-tabs::-webkit-scrollbar{display:none}
+  .day-tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-family:inherit;font-weight:600;font-size:13px;padding:7px 13px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:.15s var(--ease)}
+  .day-tabs button:hover{border-color:var(--line-strong);color:var(--ink)}
+  .day-tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .sheet-body{padding:0 24px 28px}
+
+  .plan-note{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin-bottom:18px;line-height:1.5;display:flex;gap:9px}
+  .plan-note .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:6px}
+  .block{margin-bottom:22px}
+  .block-head{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+  .block-head .tod{font-family:"Fraunces",serif;font-weight:500;font-size:17px;letter-spacing:-.01em}
+  .block-head .sun{color:var(--today)}
+  .block-head .line{flex:1;height:1px;background:var(--line)}
+  .plan-item{display:flex;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:13px 15px;margin-bottom:8px;box-shadow:var(--shadow)}
+  .plan-item .pi-pri{flex-shrink:0;width:7px;height:7px;border-radius:50%;margin-top:7px}
+  .pi-pri.high{background:var(--overdue)}.pi-pri.medium{background:var(--today)}.pi-pri.low{background:var(--low)}
+  .plan-item .pi-body .pi-ttl{font-weight:600;font-size:14.5px}
+  .block.empty-block{font-size:13px;color:var(--faint);padding:4px 2px}
+
+  .skeleton{height:60px;border-radius:11px;background:linear-gradient(90deg,var(--surface) 0%,var(--surface-2) 50%,var(--surface) 100%);background-size:200% 100%;animation:shimmer 1.3s infinite;margin-bottom:9px;border:1px solid var(--line)}
+
+  /* ---------- toast ---------- */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);background:var(--ink);color:#F4F1E9;font-size:13.5px;font-weight:500;padding:12px 18px;border-radius:11px;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.28s var(--ease);z-index:60;max-width:90vw;text-align:center}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  /* ---------- animations ---------- */
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes shimmer{to{background-position:-200% 0}}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .list .task{animation:rise .3s var(--ease) backwards}
+
+  @media(max-width:520px){
+    header.app{flex-direction:column;align-items:flex-start;gap:14px}
+    .progress{align-self:flex-end}
+    .capture button.add{padding:0 14px}
+    .toolbar{gap:8px}
+    .ai-btn{flex:1;justify-content:center}
+    .toolbar .clear-pri{flex-basis:100%;text-align:right;margin:2px 2px 0}
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="app">
+      <div class="brand">
+        <div class="mark">Ca<em>d</em>ence</div>
+        <div class="sub">Capture fast. Know what's next. Plan the day.</div>
+      </div>
+      <div class="progress" id="progress" hidden>
+        <div class="meta">
+          <div class="big" id="progBig">0 active</div>
+          <div class="small" id="progSmall">nothing due</div>
+        </div>
+        <div class="ring">
+          <svg width="46" height="46" viewBox="0 0 46 46">
+            <circle cx="23" cy="23" r="19" fill="none" stroke="var(--line)" stroke-width="4"/>
+            <circle id="ringFill" cx="23" cy="23" r="19" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4" style="transition:stroke-dashoffset .5s var(--ease)"/>
+          </svg>
+          <div class="pct" id="ringPct">0%</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- capture -->
+    <div class="capture">
+      <span class="plus">+</span>
+      <input id="capInput" type="text" autocomplete="off" placeholder="Add a task in your own words…" />
+      <button class="add" id="capBtn">Add</button>
+    </div>
+    <div class="interpret" id="interpret"></div>
+    <div id="confirmSlot"></div>
+
+    <!-- ai actions -->
+    <div class="toolbar">
+      <button class="ai-btn" id="prioritizeBtn">
+        <span class="glyph" aria-hidden="true">◇</span>
+        <span class="lbl">Prioritize tasks</span>
+      </button>
+      <button class="ai-btn" id="planBtn">
+        <span class="glyph" aria-hidden="true">☼</span>
+        <span class="lbl">Plan my day</span>
+      </button>
+      <button class="clear-pri" id="clearPriBtn" hidden>Clear priorities</button>
+    </div>
+
+    <!-- filters -->
+    <div class="filters" id="filters">
+      <button data-f="active" class="active">Active <span class="count" id="cActive">0</span></button>
+      <button data-f="overdue">Overdue <span class="count" id="cOverdue">0</span></button>
+      <button data-f="completed">Done <span class="count" id="cDone">0</span></button>
+    </div>
+
+    <!-- list -->
+    <div class="list" id="list"></div>
+  </div>
+
+  <!-- plan sheet -->
+  <div class="overlay" id="overlay">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheet-head">
+        <div class="head-row">
+          <div>
+            <h2 id="sheetTitle">Your day</h2>
+            <div class="when" id="sheetWhen"></div>
+          </div>
+          <button class="icon-btn" id="closeSheet" aria-label="Close" style="width:34px;height:34px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="day-tabs" id="dayTabs"></div>
+      </div>
+      <div class="sheet-body" id="sheetBody"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   Cadence — personal task tracker
+   Modules: Store · DateUtils · NLParser · AI · Render · App
+   AI features call the Claude API; every one falls back to
+   deterministic logic so the app keeps working offline.
+   ============================================================ */
+
+/* ---------------- Store: localStorage persistence ---------------- */
+const Store = (() => {
+  const KEY = "cadence.tasks.v1";
+  function load(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(!raw) return [];
+      const data = JSON.parse(raw);
+      return Array.isArray(data) ? data : [];
+    }catch(e){
+      console.warn("Could not read saved tasks:", e);
+      return [];
+    }
+  }
+  function save(tasks){
+    try{ localStorage.setItem(KEY, JSON.stringify(tasks)); }
+    catch(e){ console.warn("Could not save tasks:", e); Render.toast("Couldn't save to this browser."); }
+  }
+  return { load, save };
+})();
+
+/* ---------------- DateUtils ---------------- */
+const DateUtils = (() => {
+  const WD = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+  const MO = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+
+  const pad = n => String(n).padStart(2,"0");
+  const todayISO = () => toISO(new Date());
+  const toISO = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  // build a comparable Date from a task. date-only -> end of day (not overdue mid-day)
+  function dueDate(task){
+    if(!task.date) return null;
+    const [y,m,d] = task.date.split("-").map(Number);
+    if(task.time){
+      const [hh,mm] = task.time.split(":").map(Number);
+      return new Date(y, m-1, d, hh, mm, 0, 0);
+    }
+    return new Date(y, m-1, d, 23, 59, 59, 0);
+  }
+  function isOverdue(task){
+    if(task.done || !task.date) return false;
+    return dueDate(task).getTime() < Date.now();
+  }
+  function isToday(task){
+    if(task.done || !task.date) return false;
+    return task.date === todayISO() && !isOverdue(task);
+  }
+  function fmtDate(iso){
+    if(!iso) return "";
+    const [y,m,d] = iso.split("-").map(Number);
+    const dt = new Date(y,m-1,d);
+    const t = todayISO();
+    if(iso === t) return "Today";
+    const tm = new Date(); tm.setDate(tm.getDate()+1);
+    if(iso === toISO(tm)) return "Tomorrow";
+    const ys = new Date(); ys.setDate(ys.getDate()-1);
+    if(iso === toISO(ys)) return "Yesterday";
+    const sameYear = dt.getFullYear() === new Date().getFullYear();
+    return dt.toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric", ...(sameYear?{}:{year:"numeric"}) });
+  }
+  function fmtTime(t){
+    if(!t) return "";
+    let [h,m] = t.split(":").map(Number);
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12; if(h === 0) h = 12;
+    return m === 0 ? `${h} ${ap}` : `${h}:${pad(m)} ${ap}`;
+  }
+  return { WD, MO, pad, todayISO, toISO, dueDate, isOverdue, isToday, fmtDate, fmtTime };
+})();
+
+/* ---------------- NLParser: deterministic natural-language capture ----------------
+   Handles the common cases instantly and offline. Flags genuinely
+   ambiguous input as low-confidence so the AI layer can step in. */
+const NLParser = (() => {
+  const { WD, MO, pad, toISO } = DateUtils;
+
+  // Sentence case + name detection. Capitalize the first word and any word
+  // that reads as a name (right after a person verb, or after "with"), while
+  // leaving ordinary words ("groceries", "sunset") lowercase. Words the user
+  // already capitalized are respected.
+  const MINOR = new Set(["a","an","the","and","but","or","nor","for","to","of","in","on","at","by","with","from","as","vs","per","into","onto"]);
+  const PERSON_CUE = new Set(["meet","call","email","e-mail","text","message","msg","ping","see","visit","ask","tell","remind","thank","invite","interview","congratulate","reply","contact","with","w/"]);
+  const ARTICLES = new Set(["the","a","an"]);
+  const SKIP_AFTER = new Set(["with","to","up","my","our","your"]);
+  const NOT_NAME = new Set(["it","them","him","her","us","me","that","this","these","those","everyone","someone","anyone","myself","yourself","myself","back","out","off","in","on"]);
+  const clean = w => w.toLowerCase().replace(/[^a-z']/g,"");
+
+  function titleCase(s){
+    const tokens = s.split(/\s+/);
+    const out = tokens.slice();
+    // sentence case: capitalize first word if it isn't already capitalized
+    if(out[0] && !/[A-Z]/.test(out[0])) out[0] = out[0].charAt(0).toUpperCase() + out[0].slice(1);
+
+    for(let i=0;i<tokens.length;i++){
+      if(!PERSON_CUE.has(clean(tokens[i]))) continue;
+      let j=i+1, sawArticle=false;
+      while(j<tokens.length){
+        const t = clean(tokens[j]);
+        if(ARTICLES.has(t)){ sawArticle=true; break; }     // "call the dentist" -> common noun
+        if(SKIP_AFTER.has(t)){ j++; continue; }            // "meet with joey" -> skip to joey
+        break;
+      }
+      if(sawArticle || j>=tokens.length) continue;
+      const cand = tokens[j], ct = clean(cand);
+      if(ct && /^[a-z]/.test(cand) && !NOT_NAME.has(ct) && !MINOR.has(ct)){
+        out[j] = cand.charAt(0).toUpperCase() + cand.slice(1);
+      }
+    }
+    return out.join(" ");
+  }
+
+  function resolveWeekday(idx, now){
+    let delta = (idx - now.getDay() + 7) % 7;
+    if(delta === 0) delta = 7;          // "monday" means the next one
+    const d = new Date(now); d.setDate(d.getDate()+delta); return d;
+  }
+
+  function parse(input, now = new Date()){
+    const original = input.trim();
+    let text = " " + original.toLowerCase() + " ";
+    let date = null, time = null;
+    const removals = [];
+    let timeIntent = false, resolved = false;
+
+    const cut = (re) => { text = text.replace(re, m => { removals.push(m.trim()); return " "; }); };
+
+    // ---- TIME ----
+    const named = { noon:"12:00", midday:"12:00", midnight:"00:00" };
+    for(const k in named){
+      const re = new RegExp(`\\b${k}\\b`);
+      if(re.test(text)){ time = named[k]; timeIntent = true; cut(re); break; }
+    }
+    if(!time){
+      // 5pm | 5:30 pm | at 5 pm
+      let m = text.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+      if(m){
+        let h = +m[1] % 12; if(m[3] === "pm") h += 12;
+        time = `${pad(h)}:${pad(m[2]?+m[2]:0)}`; timeIntent = true;
+        cut(/\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/);
+      }
+    }
+    if(!time){
+      // 24h "at 17:00" / "17:30"
+      let m = text.match(/\b(?:at\s+)?([01]?\d|2[0-3]):([0-5]\d)\b/);
+      if(m){ time = `${pad(+m[1])}:${m[2]}`; timeIntent = true; cut(/\b(?:at\s+)?(?:[01]?\d|2[0-3]):[0-5]\d\b/); }
+    }
+    if(!time){
+      // soft parts of day -> sensible default hours
+      const parts = { "tonight":"20:00", "this evening":"18:00", "this afternoon":"14:00", "this morning":"09:00" };
+      for(const k of Object.keys(parts)){
+        if(text.includes(" "+k+" ")){ time = parts[k]; timeIntent = true; date = toISO(now); resolved = true; cut(new RegExp("\\b"+k+"\\b")); break; }
+      }
+    }
+
+    // ---- DATE ----
+    const setDate = d => { date = toISO(d); resolved = true; };
+
+    if(/\b(today|tonight)\b/.test(text)){ setDate(now); timeIntent = true; cut(/\b(today|tonight)\b/); }
+    else if(/\b(tomorrow|tmrw|tmr)\b/.test(text)){ const d=new Date(now); d.setDate(d.getDate()+1); setDate(d); timeIntent=true; cut(/\b(tomorrow|tmrw|tmr)\b/); }
+    else if(/\bday after tomorrow\b/.test(text)){ const d=new Date(now); d.setDate(d.getDate()+2); setDate(d); timeIntent=true; cut(/\bday after tomorrow\b/); }
+    else {
+      // in N days / weeks
+      let m = text.match(/\bin\s+(\d{1,3})\s+(day|days|week|weeks)\b/);
+      if(m){ const d=new Date(now); d.setDate(d.getDate() + (+m[1])*(m[2].startsWith("week")?7:1)); setDate(d); timeIntent=true; cut(/\bin\s+\d{1,3}\s+(?:day|days|week|weeks)\b/); }
+    }
+    if(!date){
+      // next week
+      if(/\bnext week\b/.test(text)){ const d=new Date(now); d.setDate(d.getDate()+7); setDate(d); timeIntent=true; cut(/\bnext week\b/); }
+    }
+    if(!date){
+      // weekday, optional this/next/on
+      for(let i=0;i<7;i++){
+        const re = new RegExp(`\\b(?:on |this |next )?${WD[i]}\\b`);
+        if(re.test(text)){ setDate(resolveWeekday(i, now)); timeIntent=true; cut(re); break; }
+      }
+    }
+    if(!date){
+      // month day  (june 5 / 5 june / june 5th)
+      const moAlt = MO.map(m=>m.slice(0,3)).join("|");
+      let m = text.match(new RegExp(`\\b(${moAlt})[a-z]*\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`));
+      if(!m) m = text.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${moAlt})[a-z]*\\b`));
+      if(m){
+        const moStr = m[1].length<=2 ? m[2] : m[1];
+        const dayStr = m[1].length<=2 ? m[1] : m[2];
+        const mi = MO.findIndex(x=>x.startsWith(moStr));
+        let yr = now.getFullYear();
+        const cand = new Date(yr, mi, +dayStr);
+        if(cand.getTime() < now.getTime() - 86400000) cand.setFullYear(yr+1);
+        setDate(cand); timeIntent=true; cut(m[0].trim().length?new RegExp(m[0].replace(/[.*+?^${}()|[\]\\]/g,"\\$&")):/$^/);
+      }
+    }
+    if(!date){
+      // numeric m/d or m/d/yy
+      let m = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+      if(m){
+        let yr = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : now.getFullYear();
+        const cand = new Date(yr, +m[1]-1, +m[2]);
+        if(!m[3] && cand.getTime() < now.getTime() - 86400000) cand.setFullYear(yr+1);
+        if(!isNaN(cand)){ setDate(cand); timeIntent=true; cut(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/); }
+      }
+    }
+
+    // detect leftover time-ish intent we couldn't pin down
+    if(!timeIntent && /\b(next month|sometime|later|soon|end of (the )?(week|month)|eod|asap|by )\b/.test(text)) timeIntent = true;
+
+    // ---- TITLE cleanup (rebuild from ORIGINAL to keep casing) ----
+    let title = original;
+    removals.forEach(r => {
+      if(!r) return;
+      const re = new RegExp(r.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"), "i");
+      title = title.replace(re, " ");
+    });
+    title = title.replace(/\s+/g," ").trim();
+    title = title.replace(/[\s,]+(at|on|by|due|in|this|next)\s*$/i,"").trim();
+    title = title.replace(/^(at|on|by|due|to|for|the)\s+/i,"").trim();
+    if(!title) title = original;            // never end up empty
+    title = titleCase(title);
+
+    // confidence
+    let confidence = "high";
+    if(timeIntent && !resolved && !time) confidence = "low";   // wanted a time, couldn't resolve
+
+    return { title, date, time, confidence, timeIntent };
+  }
+  return { parse };
+})();
+
+/* ---------------- AI: Claude API calls + deterministic fallbacks ---------------- */
+const AI = (() => {
+  const MODEL = "claude-sonnet-4-20250514";
+
+  async function call(messages, maxTokens = 1024){
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages })
+    });
+    if(!res.ok) throw new Error("api " + res.status);
+    const data = await res.json();
+    return data.content.filter(b => b.type === "text").map(b => b.text).join("\n");
+  }
+  function parseJSON(text){
+    const clean = text.replace(/```json/gi,"").replace(/```/g,"").trim();
+    const s = clean.indexOf("{"), e = clean.lastIndexOf("}");
+    const arrS = clean.indexOf("["), arrE = clean.lastIndexOf("]");
+    let slice = clean;
+    if(arrS !== -1 && (arrS < s || s === -1)) slice = clean.slice(arrS, arrE+1);
+    else if(s !== -1) slice = clean.slice(s, e+1);
+    return JSON.parse(slice);
+  }
+
+  /* Feature 1 fallback uses NLParser; AI only interprets the ambiguous tail */
+  async function interpret(raw){
+    const today = DateUtils.todayISO();
+    const prompt =
+`Today is ${today}. A user typed a quick task note. Extract a clean task.
+Note: "${raw}"
+Respond ONLY with JSON: {"title": string, "date": "YYYY-MM-DD" or null, "time": "HH:MM" 24h or null}.
+Keep the title short and natural. If no date/time is implied, use null.`;
+    const out = await call([{ role:"user", content: prompt }], 300);
+    const j = parseJSON(out);
+    return { title: j.title || raw, date: j.date || null, time: j.time || null };
+  }
+
+  /* Feature 2: prioritize */
+  async function prioritize(tasks){
+    const today = DateUtils.todayISO();
+    const payload = tasks.map(t => ({
+      id: t.id, title: t.title, date: t.date, time: t.time,
+      overdue: DateUtils.isOverdue(t)
+    }));
+    const prompt =
+`Today is ${today}. Assign each personal task a priority of "high", "medium", or "low" and a short reason (max 12 words, plain and specific). Use plain hyphens, never long dashes.
+Weigh: overdue status, how soon it is due, time sensitivity, and what the wording implies (e.g. health, money, blocking others, deadlines).
+Tasks: ${JSON.stringify(payload)}
+Respond ONLY with JSON: [{"id": string, "level": "high|medium|low", "reason": string}].`;
+    const out = await call([{ role:"user", content: prompt }], 1500);
+    const arr = parseJSON(out);
+    const map = {};
+    arr.forEach(r => { if(r && r.id) map[r.id] = { level: r.level, reason: r.reason }; });
+    return map;
+  }
+  function prioritizeLocal(tasks){
+    const map = {};
+    tasks.forEach(t => {
+      let level = "low", reason = "No deadline, handle when convenient.";
+      if(DateUtils.isOverdue(t)){ level="high"; reason="Past its due date."; }
+      else if(t.date){
+        const days = Math.ceil((DateUtils.dueDate(t) - Date.now())/86400000);
+        if(days <= 1){ level="high"; reason="Due today or tomorrow."; }
+        else if(days <= 4){ level="medium"; reason=`Due in about ${days} days.`; }
+        else { level="low"; reason="Due later this week or beyond."; }
+      }
+      map[t.id] = { level, reason };
+    });
+    return map;
+  }
+
+  /* Feature 3: plan the day */
+  // Suggest a time block from a fixed time, or from time-of-day words in the
+  // title (sunset/evening/dinner -> evening, etc.). Returns null if no signal.
+  function blockHint(t){
+    if(t.time){ const h=+t.time.split(":")[0]; return h<12?"morning":h<17?"afternoon":"evening"; }
+    const s = " " + (t.title||"").toLowerCase() + " ";
+    if(/\b(evening|sunset|sundown|dusk|dinner|tonight|night|nighttime|bedtime)\b/.test(s)) return "evening";
+    if(/\b(noon|midday|lunch|afternoon)\b/.test(s)) return "afternoon";
+    if(/\b(morning|sunrise|dawn|breakfast)\b/.test(s)) return "morning";
+    return null;
+  }
+
+  async function planDay(tasks, ctx){
+    const today = DateUtils.todayISO();
+    const payload = tasks.map(t => ({
+      id:t.id, title:t.title, date:t.date, time:t.time,
+      overdue:DateUtils.isOverdue(t), priority: t.priority ? t.priority.level : null,
+      block: blockHint(t)
+    }));
+    const scope = ctx.isToday
+      ? `Plan TODAY (${ctx.dateISO}). Every task below is overdue, due today, or unscheduled.`
+      : `Plan ${ctx.label} (${ctx.dateISO}). Every task below is scheduled for that day.`;
+    const prompt =
+`Today is ${today}. ${scope} Place each task in exactly one block: "morning", "afternoon", or "evening".
+Rules: if a task has a "block" value, put it in that block; otherwise respect any fixed time. Front-load overdue and high-priority work, spread the load so no block is overloaded, schedule every task exactly once, and never invent tasks.
+Add a single short "note" (max 12 words): a plain, easy-to-read summary of the day. Keep it simple and conversational, no jargon or filler (avoid phrases like "well-spaced", "no overload", "across any block"). Do NOT rename tasks or add details the user never wrote. Use plain hyphens, never long dashes.
+Tasks: ${JSON.stringify(payload)}
+Respond ONLY with JSON: {"note": string, "morning":[id strings], "afternoon":[id strings], "evening":[id strings]}.`;
+    const out = await call([{ role:"user", content: prompt }], 1800);
+    return parseJSON(out);
+  }
+  function planDayLocal(tasks, ctx){
+    const n = tasks.length;
+    const load = n <= 2 ? "light" : n <= 4 ? "steady" : "full";
+    const plan = { note: `A ${load} day with ${n} task${n===1?"":"s"}.`, morning:[], afternoon:[], evening:[] };
+    const rank = { high:0, medium:1, low:2 };
+    const sorted = [...tasks].sort((a,b) => {
+      const ao = DateUtils.isOverdue(a)?0:1, bo = DateUtils.isOverdue(b)?0:1;
+      if(ao!==bo) return ao-bo;
+      const ap = a.priority?rank[a.priority.level]:1, bp = b.priority?rank[b.priority.level]:1;
+      return ap-bp;
+    });
+    sorted.forEach((t,i) => {
+      const block = blockHint(t) || ["morning","afternoon","evening"][i % 3];
+      plan[block].push(t.id);
+    });
+    return plan;
+  }
+
+  return { interpret, prioritize, prioritizeLocal, planDay, planDayLocal };
+})();
+
+/* ---------------- App + Render ---------------- */
+let tasks = Store.load();
+let filter = "active";
+let editingId = null;
+let pendingConfirm = null;
+
+const $ = sel => document.querySelector(sel);
+const el = (tag, cls, html) => { const n=document.createElement(tag); if(cls)n.className=cls; if(html!=null)n.innerHTML=html; return n; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
+const PRI_MEANING = {
+  high:   "High: overdue or time-sensitive",
+  medium: "Medium: due soon",
+  low:    "Low: no deadline"
+};
+
+const ICON = {
+  clock:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  cal:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>',
+  edit:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  trash:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+  check:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  inbox:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5 5h14l2 7v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Z"/></svg>'
+};
+
+const Render = (() => {
+  function toast(msg){
+    const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(t._tm); t._tm = setTimeout(()=>t.classList.remove("show"), 3200);
+  }
+
+  function counts(){
+    const active = tasks.filter(t=>!t.done).length;
+    const overdue = tasks.filter(t=>DateUtils.isOverdue(t)).length;
+    const done = tasks.filter(t=>t.done).length;
+    $("#cActive").textContent = active;
+    $("#cOverdue").textContent = overdue;
+    $("#cDone").textContent = done;
+
+    const total = tasks.length;
+    const prog = $("#progress");
+    if(total === 0){ prog.hidden = true; return; }
+    prog.hidden = false;
+    const pct = Math.round((done/total)*100);
+    $("#ringPct").textContent = pct + "%";
+    $("#ringFill").style.strokeDashoffset = (119.4 * (1 - pct/100)).toFixed(1);
+    const dueToday = tasks.filter(t=>DateUtils.isToday(t)).length;
+    $("#progBig").textContent = `${active} active`;
+    $("#progSmall").textContent = overdue ? `${overdue} overdue` : dueToday ? `${dueToday} due today` : active ? "nothing due today" : "all caught up";
+  }
+
+  function sortActive(arr){
+    return arr.sort((a,b)=>{
+      const ad=DateUtils.dueDate(a), bd=DateUtils.dueDate(b);
+      if(ad && bd) return ad-bd;
+      if(ad) return -1;
+      if(bd) return 1;
+      return (b.createdAt||0)-(a.createdAt||0);
+    });
+  }
+
+  function taskNode(t){
+    const overdue = DateUtils.isOverdue(t), today = DateUtils.isToday(t);
+    const node = el("div", "task" + (t.done?" done":"") + (overdue?" overdue":today?" today":""));
+    node.dataset.id = t.id;
+
+    if(editingId === t.id){ node.appendChild(editor(t)); return node; }
+
+    // checkbox
+    const chk = el("div", "check" + (t.done?" on":""), ICON.check);
+    chk.setAttribute("role","button"); chk.setAttribute("aria-label","Toggle complete");
+    chk.onclick = () => App.toggle(t.id);
+    node.appendChild(chk);
+
+    // body
+    const body = el("div","body");
+    const tline = el("div","ttl-line");
+    tline.appendChild(el("span","ttl-text", escapeHTML(t.title)));
+    if(t.priority){
+      const p = el("span","pri "+t.priority.level, `<span class="pdot"></span>${t.priority.level}`);
+      p.title = PRI_MEANING[t.priority.level] || "";
+      tline.appendChild(p);
+      if(t.priority.reason) tline.appendChild(el("span","pri-reason", escapeHTML(t.priority.reason)));
+    }
+    body.appendChild(tline);
+
+    if(t.date || t.time){
+      const meta = el("div","meta-line");
+      const cls = overdue?" is-overdue":today?" is-today":"";
+      let label = "";
+      if(t.date) label += DateUtils.fmtDate(t.date);
+      if(t.time) label += (label?" · ":"") + DateUtils.fmtTime(t.time);
+      const due = el("span","due"+cls, `${ICON.cal}<span>${label}</span>`);
+      meta.appendChild(due);
+      body.appendChild(meta);
+    }
+    node.appendChild(body);
+
+    // actions
+    const acts = el("div","row-acts");
+    const ed = el("button","icon-btn",ICON.edit); ed.title="Edit"; ed.onclick=()=>{ editingId=t.id; render(); };
+    const del = el("button","icon-btn danger",ICON.trash); del.title="Delete"; del.onclick=()=>App.remove(t.id);
+    acts.append(ed, del);
+    node.appendChild(acts);
+    return node;
+  }
+
+  function editor(t){
+    const wrap = el("div","editor");
+    const ti = el("input"); ti.type="text"; ti.value=t.title; ti.placeholder="Task";
+    const fields = el("div","fields");
+    const di = el("input"); di.type="date"; di.value=t.date||"";
+    const tm = el("input"); tm.type="time"; tm.value=t.time||"";
+    fields.append(di,tm);
+    const acts = el("div","ed-acts");
+    const save = el("button","btn primary","Save");
+    const cancel = el("button","btn ghost","Cancel");
+    save.onclick=()=>{ App.edit(t.id,{title:ti.value.trim()||t.title,date:di.value||null,time:tm.value||null}); editingId=null; render(); };
+    cancel.onclick=()=>{ editingId=null; render(); };
+    acts.append(save,cancel);
+    wrap.append(ti,fields,acts);
+    setTimeout(()=>ti.focus(),20);
+    ti.onkeydown=e=>{ if(e.key==="Enter") save.onclick(); if(e.key==="Escape") cancel.onclick(); };
+    return wrap;
+  }
+
+  const EMPTY = {
+    active:{h:"Nothing on your plate",p:"Capture a task above. Type it the way you'd say it out loud and Cadence sorts out the date and time."},
+    overdue:{h:"Nothing overdue",p:"You're on top of your deadlines. Anything past due will show up here."},
+    completed:{h:"No completed tasks yet",p:"Finished tasks land here so you can see what you've cleared."}
+  };
+
+  function render(){
+    counts();
+    const list = $("#list");
+    list.innerHTML = "";
+
+    let view;
+    if(filter==="active") view = sortActive(tasks.filter(t=>!t.done));
+    else if(filter==="overdue") view = sortActive(tasks.filter(t=>DateUtils.isOverdue(t)));
+    else view = tasks.filter(t=>t.done).sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
+
+    if(view.length === 0){
+      const e = EMPTY[filter];
+      const box = el("div","empty");
+      box.innerHTML = `<div class="ico">${ICON.inbox}</div><h3>${e.h}</h3><p>${e.p}</p>`;
+      list.appendChild(box);
+    } else if(filter==="active"){
+      // group active into Overdue / Today / Upcoming / Someday
+      const groups = {Overdue:[],Today:[],Upcoming:[],Someday:[]};
+      view.forEach(t=>{
+        if(DateUtils.isOverdue(t)) groups.Overdue.push(t);
+        else if(DateUtils.isToday(t)) groups.Today.push(t);
+        else if(t.date) groups.Upcoming.push(t);
+        else groups.Someday.push(t);
+      });
+      let i=0;
+      for(const g of ["Overdue","Today","Upcoming","Someday"]){
+        if(!groups[g].length) continue;
+        list.appendChild(el("div","group-label",g));
+        groups[g].forEach(t=>{ const n=taskNode(t); n.style.animationDelay=(i++*22)+"ms"; list.appendChild(n); });
+      }
+    } else {
+      view.forEach((t,i)=>{ const n=taskNode(t); n.style.animationDelay=(i*22)+"ms"; list.appendChild(n); });
+    }
+
+    $("#clearPriBtn").hidden = !tasks.some(t=>t.priority);
+    document.querySelectorAll("#filters button").forEach(b=>b.classList.toggle("active",b.dataset.f===filter));
+  }
+
+  function escapeHTML(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  return { render, counts, toast, escapeHTML };
+})();
+const render = Render.render;
+
+/* ------- live interpretation preview under the capture box ------- */
+function updateInterpret(){
+  const box = $("#interpret");
+  const raw = $("#capInput").value.trim();
+  if(!raw){ box.innerHTML=""; return; }
+  const p = NLParser.parse(raw);
+  let html = `<span class="arrow">&rarr;</span> <span class="chip">${Render.escapeHTML(p.title)}</span>`;
+  if(p.date) html += ` <span class="chip t">${DateUtils.fmtDate(p.date)}${p.time?" · "+DateUtils.fmtTime(p.time):""}</span>`;
+  else if(p.time) html += ` <span class="chip t">${DateUtils.fmtTime(p.time)}</span>`;
+  else if(p.confidence==="low") html += ` <span style="color:var(--faint)">looks time-related — will confirm with you</span>`;
+  box.innerHTML = html;
+}
+
+/* ---------------- App controller ---------------- */
+const App = (() => {
+  function persist(){ Store.save(tasks); }
+
+  // --- plan-my-day view state ---
+  let planDays = [];      // [{iso,label,short,isToday,tasks}]
+  let selectedDay = null; // iso of the day currently shown
+  let planCache = {};      // iso -> plan object (so switching days doesn't refetch)
+
+  function add(title,date,time){
+    tasks.unshift({ id:uid(), title:title.trim(), date:date||null, time:time||null, done:false, createdAt:Date.now(), priority:null });
+    persist(); render();
+  }
+
+  async function capture(){
+    const input = $("#capInput");
+    const raw = input.value.trim();
+    if(!raw) return;
+    const p = NLParser.parse(raw);
+
+    if(p.confidence === "high"){
+      add(p.title, p.date, p.time);
+      input.value=""; updateInterpret();
+      return;
+    }
+
+    // low confidence -> ask the AI to interpret, then confirm
+    const slot = $("#confirmSlot");
+    slot.innerHTML = `<div class="confirm"><div class="lead"><span class="dot"></span>Reading that with AI…</div><div class="skeleton" style="height:24px;margin:0"></div></div>`;
+    try{
+      const r = await AI.interpret(raw);
+      showConfirm(raw, r);
+    }catch(e){
+      // graceful fallback: use deterministic title, let user fill the rest
+      showConfirm(raw, { title:p.title, date:p.date, time:p.time }, true);
+    }
+  }
+
+  function showConfirm(raw, r, offline){
+    const slot = $("#confirmSlot");
+    const card = el("div","confirm");
+    const dateLabel = r.date ? DateUtils.fmtDate(r.date) + (r.time?" · "+DateUtils.fmtTime(r.time):"") : (r.time?DateUtils.fmtTime(r.time):"no date");
+    card.innerHTML =
+      `<div class="lead"><span class="dot"></span>${offline?"AI unavailable — here's my best read. Adjust if needed.":"Here's how I read that. Look right?"}</div>
+       <div class="row">
+         <span class="ttl">${Render.escapeHTML(r.title)}</span>
+         <span class="chip t">${dateLabel}</span>
+         <span class="acts">
+           <button class="btn ghost" data-a="edit">Edit</button>
+           <button class="btn primary" data-a="add">Add task</button>
+         </span>
+       </div>`;
+    slot.innerHTML=""; slot.appendChild(card);
+    card.querySelector('[data-a="add"]').onclick = () => {
+      add(r.title, r.date, r.time);
+      $("#capInput").value=""; slot.innerHTML=""; updateInterpret();
+    };
+    card.querySelector('[data-a="edit"]').onclick = () => {
+      add(r.title, r.date, r.time);
+      $("#capInput").value=""; slot.innerHTML=""; updateInterpret();
+      editingId = tasks[0].id; render();
+      $("#list").scrollIntoView({behavior:"smooth",block:"start"});
+    };
+  }
+
+  function toggle(id){
+    const t = tasks.find(x=>x.id===id); if(!t) return;
+    t.done = !t.done; t.completedAt = t.done?Date.now():null;
+    if(t.done) t.priority = null;
+    const node = document.querySelector(`.task[data-id="${id}"]`);
+    if(node && t.done && filter!=="completed"){
+      node.classList.add("removing");
+      setTimeout(()=>{ persist(); render(); }, 200);
+    } else { persist(); render(); }
+  }
+  function remove(id){
+    const node = document.querySelector(`.task[data-id="${id}"]`);
+    const fin = () => { tasks = tasks.filter(t=>t.id!==id); persist(); render(); };
+    if(node){ node.classList.add("removing"); setTimeout(fin,180); } else fin();
+  }
+  function edit(id, patch){
+    const t = tasks.find(x=>x.id===id); if(!t) return;
+    Object.assign(t, patch); persist();
+  }
+  function clearPriorities(){
+    tasks.forEach(t=>t.priority=null); persist(); render();
+  }
+
+  /* ---- AI action: prioritize ---- */
+  async function runPrioritize(){
+    const open = tasks.filter(t=>!t.done);
+    if(!open.length){ Render.toast("No active tasks to prioritize."); return; }
+    const btn = $("#prioritizeBtn");
+    setLoading(btn, true, "Thinking…");
+    try{
+      let map;
+      try{ map = await AI.prioritize(open); }
+      catch(e){ map = AI.prioritizeLocal(open); Render.toast("AI unavailable — prioritized with local rules."); }
+      open.forEach(t=>{ if(map[t.id]) t.priority = map[t.id]; });
+      // any the model skipped: fill locally
+      const local = AI.prioritizeLocal(open);
+      open.forEach(t=>{ if(!t.priority) t.priority = local[t.id]; });
+      persist();
+      if(filter==="completed") filter="active";
+      render();
+    } finally { setLoading(btn,false,"Prioritize tasks"); }
+  }
+
+  /* ---- AI action: plan my day ---- */
+  // Build the list of days worth planning: today, plus every upcoming
+  // date that has at least one active task (so Sunday shows up on Friday).
+  function buildPlanDays(){
+    const open = tasks.filter(t=>!t.done);
+    const today = DateUtils.todayISO();
+    const days = [];
+
+    // Today = overdue + due today + unscheduled (the catch-up day)
+    const todays = open.filter(t => DateUtils.isOverdue(t) || DateUtils.isToday(t) || !t.date);
+    days.push({ iso: today, label: "Today", short: "Today", isToday: true, tasks: todays });
+
+    // Each distinct future date that has a dated task
+    const future = [...new Set(open.filter(t => t.date && t.date > today).map(t => t.date))].sort();
+    future.forEach(iso => {
+      const dt = open.filter(t => t.date === iso);
+      days.push({ iso, label: DateUtils.fmtDate(iso), short: DateUtils.fmtDate(iso), isToday: false, tasks: dt });
+    });
+    return days;
+  }
+
+  async function runPlan(){
+    const open = tasks.filter(t=>!t.done);
+    if(!open.length){ Render.toast("Add a few tasks first, then plan your day."); return; }
+    planDays = buildPlanDays();
+    planCache = {};
+    selectedDay = planDays[0].iso;
+    openSheet(true);
+    renderDayTabs();
+    await loadDay(selectedDay);
+  }
+
+  function renderDayTabs(){
+    const wrap = $("#dayTabs");
+    wrap.innerHTML = "";
+    if(planDays.length <= 1){ wrap.style.display = "none"; return; }
+    wrap.style.display = "flex";
+    planDays.forEach(d => {
+      const b = el("button", d.iso === selectedDay ? "active" : "");
+      b.textContent = d.short;
+      b.onclick = () => { if(d.iso !== selectedDay){ selectedDay = d.iso; renderDayTabs(); loadDay(d.iso); } };
+      wrap.appendChild(b);
+    });
+  }
+
+  async function loadDay(iso){
+    const day = planDays.find(d => d.iso === iso);
+    if(!day) return;
+    const btn = $("#planBtn");
+    $("#sheetTitle").textContent = day.isToday ? "Today" : day.label;
+    const [y,m,dd] = iso.split("-").map(Number);
+    $("#sheetWhen").textContent = new Date(y,m-1,dd).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+
+    if(!day.tasks.length){
+      const nextDated = planDays.find(d => !d.isToday && d.tasks.length);
+      const hint = nextDated ? ` Next up is ${nextDated.label.toLowerCase()}.` : "";
+      $("#sheetBody").innerHTML = `<div class="empty"><div class="ico">${ICON.inbox}</div><h3>Nothing to plan ${day.isToday?"today":"that day"}</h3><p>No tasks fall on this day.${hint}</p></div>`;
+      return;
+    }
+    if(planCache[iso]){ renderPlan(planCache[iso], day.tasks); return; }
+
+    $("#sheetBody").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div>`;
+    setLoading(btn, true, "Building…");
+    try{
+      let plan;
+      const ctx = { isToday: day.isToday, label: day.label, dateISO: iso };
+      try{ plan = await AI.planDay(day.tasks, ctx); }
+      catch(e){ plan = AI.planDayLocal(day.tasks, ctx); }
+      planCache[iso] = plan;
+      if(selectedDay === iso) renderPlan(plan, day.tasks);
+    } catch(e){
+      $("#sheetBody").innerHTML = `<div class="empty"><h3>Couldn't build a plan</h3><p>Something went wrong. Try again in a moment.</p></div>`;
+    } finally { setLoading(btn,false,"Plan my day"); }
+  }
+
+  function renderPlan(plan, dayTasks){
+    const byId = {}; dayTasks.forEach(t=>byId[t.id]=t);
+    const body = $("#sheetBody");
+    body.innerHTML = "";
+    if(plan.note){
+      body.appendChild(el("div","plan-note",`<span class="dot"></span><span>${Render.escapeHTML(plan.note)}</span>`));
+    }
+    const blocks = [["morning","Morning"],["afternoon","Afternoon"],["evening","Evening"]];
+    let any=false;
+    blocks.forEach(([key,label])=>{
+      const ids = (plan[key]||[]).map(it => typeof it === "string" ? it : (it && it.id)).filter(id => byId[id]);
+      const block = el("div","block");
+      const head = el("div","block-head");
+      head.innerHTML = `<span class="tod">${label}</span><span class="line"></span>`;
+      block.appendChild(head);
+      if(!ids.length){
+        block.classList.add("empty-block");
+        block.appendChild(el("div",null,"Nothing scheduled."));
+      } else {
+        any=true;
+        ids.forEach(id=>{
+          const t = byId[id];
+          const lvl = t.priority?t.priority.level:"low";
+          const node = el("div","plan-item");
+          node.innerHTML = `<span class="pi-pri ${lvl}"></span>
+            <div class="pi-body"><div class="pi-ttl">${Render.escapeHTML(t.title)}${t.time?` <span style="color:var(--muted);font-weight:500;font-size:12.5px">· ${DateUtils.fmtTime(t.time)}</span>`:""}</div></div>`;
+          block.appendChild(node);
+        });
+      }
+      body.appendChild(block);
+    });
+    if(!any) body.innerHTML = `<div class="empty"><h3>Lighter day than expected</h3><p>Nothing landed in the schedule. Add or activate a few tasks and try again.</p></div>`;
+  }
+
+  function openSheet(loading){
+    const ov = $("#overlay");
+    ov.classList.add("show");
+    if(loading){
+      $("#sheetTitle").textContent = "Your day";
+      $("#sheetWhen").textContent = "Building your plan…";
+      $("#sheetBody").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div>`;
+    }
+  }
+  function closeSheet(){ $("#overlay").classList.remove("show"); }
+
+  function setLoading(btn, on, label){
+    const lbl = btn.querySelector(".lbl"), glyph = btn.querySelector(".glyph");
+    btn.disabled = on;
+    if(on){ if(glyph) glyph.outerHTML = `<span class="spin"></span>`; }
+    else {
+      const s = btn.querySelector(".spin");
+      if(s) s.outerHTML = btn.id==="prioritizeBtn" ? '<span class="glyph" aria-hidden="true">◇</span>' : '<span class="glyph" aria-hidden="true">☼</span>';
+    }
+    if(lbl) lbl.textContent = label;
+  }
+
+  return { add, capture, toggle, remove, edit, clearPriorities, runPrioritize, runPlan, closeSheet };
+})();
+
+/* ---------------- wiring ---------------- */
+$("#capBtn").onclick = () => App.capture();
+$("#capInput").addEventListener("input", () => { updateInterpret(); $("#confirmSlot").innerHTML=""; });
+$("#capInput").addEventListener("keydown", e => { if(e.key==="Enter") App.capture(); });
+$("#prioritizeBtn").onclick = () => App.runPrioritize();
+$("#planBtn").onclick = () => App.runPlan();
+$("#clearPriBtn").onclick = () => App.clearPriorities();
+$("#closeSheet").onclick = () => App.closeSheet();
+$("#overlay").addEventListener("click", e => { if(e.target.id==="overlay") App.closeSheet(); });
+document.addEventListener("keydown", e => { if(e.key==="Escape") App.closeSheet(); });
+$("#filters").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  filter = b.dataset.f; editingId=null; render();
+});
+
+render();
+</script>
+</body>
+</html>
