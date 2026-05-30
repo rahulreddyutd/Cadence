@@ -555,14 +555,24 @@ const AI = (() => {
 
   async function call(messages, maxTokens = 1024){
     const body = JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages });
-    let res;
+    let res, viaProxy = true;
     try{
       res = await fetch(PROXY_URL, { method:"POST", headers:{ "Content-Type":"application/json" }, body });
-      if(res.status === 404) throw new Error("no-proxy");   // proxy not deployed (e.g. artifact runtime)
+      if(res.status === 404){ viaProxy = false; throw new Error("no-proxy"); }  // proxy not deployed (e.g. artifact runtime)
     }catch(e){
+      viaProxy = false;
       res = await fetch(DIRECT_URL, { method:"POST", headers:{ "Content-Type":"application/json" }, body });
     }
-    if(!res.ok) throw new Error("api " + res.status);
+    if(!res.ok){
+      let detail = "";
+      try{ const j = await res.clone().json(); if(j && j.error) detail = typeof j.error === "string" ? j.error : JSON.stringify(j.error); }catch(_){}
+      console.warn(`[Cadence] AI request failed via ${viaProxy ? "/api/claude proxy" : "direct endpoint"} - HTTP ${res.status}${detail ? ": " + detail : ""}. Using local fallback. ` +
+        (res.status === 500 ? "Likely cause: ANTHROPIC_API_KEY is not set in Vercel (or you set it but did not redeploy)." :
+         res.status === 401 ? "Likely cause: the API key is invalid." :
+         res.status === 404 ? "Likely cause: api/claude.js is missing or in the wrong folder." :
+         res.status === 429 ? "Likely cause: spend limit or rate limit reached." : ""));
+      throw new Error("api " + res.status);
+    }
     const data = await res.json();
     return data.content.filter(b => b.type === "text").map(b => b.text).join("\n");
   }
@@ -609,13 +619,18 @@ Respond ONLY with JSON: [{"id": string, "level": "high|medium|low", "reason": st
   }
   function prioritizeLocal(tasks){
     const map = {};
+    const now = new Date();
+    const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     tasks.forEach(t => {
       let level = "low", reason = "No deadline, handle when convenient.";
       if(DateUtils.isOverdue(t)){ level="high"; reason="Past its due date."; }
       else if(t.date){
-        const days = Math.ceil((DateUtils.dueDate(t) - Date.now())/86400000);
-        if(days <= 1){ level="high"; reason="Due today or tomorrow."; }
-        else if(days <= 4){ level="medium"; reason=`Due in about ${days} days.`; }
+        const [y,m,d] = t.date.split("-").map(Number);
+        const taskMid = new Date(y, m-1, d);
+        const days = Math.round((taskMid - todayMid)/86400000);  // whole calendar days ahead
+        if(days <= 0){ level="high"; reason="Due today."; }
+        else if(days === 1){ level="high"; reason="Due tomorrow."; }
+        else if(days <= 4){ level="medium"; reason=`Due in ${days} days.`; }
         else { level="low"; reason="Due later this week or beyond."; }
       }
       map[t.id] = { level, reason };
