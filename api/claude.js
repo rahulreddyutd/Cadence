@@ -1,14 +1,13 @@
-// Vercel Serverless Function: /api/claude
+// Vercel Serverless Function: /api/claude  (CommonJS)
 //
-// The browser calls THIS endpoint (same domain, no CORS issues). This function
-// adds your Anthropic API key (kept server-side in an environment variable) and
+// The browser calls THIS endpoint (same domain, no CORS). This function adds
+// your Anthropic API key (kept server-side in an environment variable) and
 // forwards the request to Anthropic, then returns the response to the browser.
 //
 // The key is NEVER sent to the browser and never appears in your source code.
-// Set it in Vercel: Project → Settings → Environment Variables → ANTHROPIC_API_KEY
+// Set it in Vercel: Project -> Settings -> Environment Variables -> ANTHROPIC_API_KEY
 
-export default async function handler(req, res) {
-  // Only allow POST
+module.exports = async (req, res) => {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
@@ -21,10 +20,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Vercel usually parses JSON bodies into req.body, but tolerate a raw string too.
     let payload = req.body;
     if (typeof payload === "string") {
-      try { payload = JSON.parse(payload); } catch { payload = {}; }
+      try { payload = JSON.parse(payload); } catch (e) { payload = {}; }
     }
     payload = payload || {};
     const { model, max_tokens, messages } = payload;
@@ -48,11 +46,9 @@ export default async function handler(req, res) {
     });
 
     const data = await upstream.json();
-
-    // Pass Anthropic's status through so the app's error handling still works
     return res.status(upstream.status).json(data);
   } catch (err) {
     console.error("Proxy error:", err);
     return res.status(502).json({ error: "Failed to reach Anthropic" });
   }
-}
+};
