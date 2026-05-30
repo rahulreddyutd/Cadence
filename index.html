@@ -209,6 +209,7 @@
   .plan-item.done .pi-time{font-size:14.5px;color:var(--muted)}
   .block.empty-block{font-size:13px;color:var(--faint);padding:4px 2px}
 
+
   .skeleton{height:60px;border-radius:11px;background:linear-gradient(90deg,var(--surface) 0%,var(--surface-2) 50%,var(--surface) 100%);background-size:200% 100%;animation:shimmer 1.3s infinite;margin-bottom:9px;border:1px solid var(--line)}
 
   /* ---------- toast ---------- */
@@ -236,7 +237,7 @@
     <header class="app">
       <div class="brand">
         <div class="mark">Ca<em>d</em>ence</div>
-        <div class="sub">Capture fast. Know what's next. Plan the day.</div>
+        <div class="sub">Capture. Prioritize. Plan.</div>
       </div>
       <div class="progress" id="progress" hidden>
         <div class="meta">
@@ -1017,11 +1018,12 @@ const App = (() => {
   }
 
   async function runPlan(){
-    const open = tasks.filter(t=>!t.done);
-    if(!open.length){ Render.toast("Add a few tasks first, then plan your day."); return; }
+    if(!tasks.length){ Render.toast("Add a few tasks first, then plan your day."); return; }
     planDays = buildPlanDays();
     planCache = {};
-    selectedDay = planDays[0].iso;
+    // Prefer the first day that actually has something to show.
+    const firstWithItems = planDays.find(d => d.tasks.length || d.done.length) || planDays[0];
+    selectedDay = firstWithItems.iso;
     openSheet(true);
     renderDayTabs();
     await loadDay(selectedDay);
