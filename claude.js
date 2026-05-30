@@ -16,12 +16,18 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
+    console.error("ANTHROPIC_API_KEY is not set. Add it in Vercel: Settings -> Environment Variables, then redeploy.");
     return res.status(500).json({ error: "Server is missing ANTHROPIC_API_KEY" });
   }
 
   try {
-    // Vercel parses JSON bodies automatically into req.body
-    const { model, max_tokens, messages } = req.body || {};
+    // Vercel usually parses JSON bodies into req.body, but tolerate a raw string too.
+    let payload = req.body;
+    if (typeof payload === "string") {
+      try { payload = JSON.parse(payload); } catch { payload = {}; }
+    }
+    payload = payload || {};
+    const { model, max_tokens, messages } = payload;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "Request must include a messages array" });
