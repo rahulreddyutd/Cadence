@@ -189,7 +189,7 @@
   .day-tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-family:inherit;font-weight:600;font-size:13px;padding:7px 13px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:.15s var(--ease)}
   .day-tabs button:hover{border-color:var(--line-strong);color:var(--ink)}
   .day-tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
-  .sheet-body{padding:0 24px 28px}
+  .sheet-body{padding:18px 24px 28px}
 
   .plan-note{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin-bottom:18px;line-height:1.5;display:flex;gap:9px}
   .plan-note .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:6px}
@@ -202,6 +202,11 @@
   .plan-item .pi-pri{flex-shrink:0;width:7px;height:7px;border-radius:50%;margin-top:7px}
   .pi-pri.high{background:var(--overdue)}.pi-pri.medium{background:var(--today)}.pi-pri.low{background:var(--low)}
   .plan-item .pi-body .pi-ttl{font-weight:600;font-size:14.5px}
+  .plan-item .pi-time{color:var(--muted);font-weight:500;font-size:12.5px}
+  .plan-item.done{opacity:.6;box-shadow:none;background:var(--surface-2)}
+  .plan-item.done .pi-pri{background:var(--faint)}
+  .plan-item.done .pi-ttl{text-decoration:line-through;text-decoration-color:var(--faint);color:var(--muted)}
+  .plan-item.done .pi-time{font-size:14.5px;color:var(--muted)}
   .block.empty-block{font-size:13px;color:var(--faint);padding:4px 2px}
 
   .skeleton{height:60px;border-radius:11px;background:linear-gradient(90deg,var(--surface) 0%,var(--surface-2) 50%,var(--surface) 100%);background-size:200% 100%;animation:shimmer 1.3s infinite;margin-bottom:9px;border:1px solid var(--line)}
@@ -542,12 +547,21 @@ const NLParser = (() => {
 const AI = (() => {
   const MODEL = "claude-sonnet-4-20250514";
 
+  // On Vercel, calls go to our serverless proxy at /api/claude (which holds the
+  // API key server-side). Inside the Claude artifact runtime, the direct endpoint
+  // is auto-authenticated, so we fall back to it if the proxy isn't present.
+  const PROXY_URL = "/api/claude";
+  const DIRECT_URL = "https://api.anthropic.com/v1/messages";
+
   async function call(messages, maxTokens = 1024){
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages })
-    });
+    const body = JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages });
+    let res;
+    try{
+      res = await fetch(PROXY_URL, { method:"POST", headers:{ "Content-Type":"application/json" }, body });
+      if(res.status === 404) throw new Error("no-proxy");   // proxy not deployed (e.g. artifact runtime)
+    }catch(e){
+      res = await fetch(DIRECT_URL, { method:"POST", headers:{ "Content-Type":"application/json" }, body });
+    }
     if(!res.ok) throw new Error("api " + res.status);
     const data = await res.json();
     return data.content.filter(b => b.type === "text").map(b => b.text).join("\n");
@@ -658,7 +672,7 @@ Respond ONLY with JSON: {"note": string, "morning":[id strings], "afternoon":[id
     return plan;
   }
 
-  return { interpret, prioritize, prioritizeLocal, planDay, planDayLocal };
+  return { interpret, prioritize, prioritizeLocal, planDay, planDayLocal, blockHint };
 })();
 
 /* ---------------- App + Render ---------------- */
@@ -919,6 +933,7 @@ const App = (() => {
     const t = tasks.find(x=>x.id===id); if(!t) return;
     t.done = !t.done; t.completedAt = t.done?Date.now():null;
     if(t.done) t.priority = null;
+    planCache = {};   // plan may include this task; rebuild on next open
     const node = document.querySelector(`.task[data-id="${id}"]`);
     if(node && t.done && filter!=="completed"){
       node.classList.add("removing");
@@ -963,18 +978,25 @@ const App = (() => {
   // date that has at least one active task (so Sunday shows up on Friday).
   function buildPlanDays(){
     const open = tasks.filter(t=>!t.done);
+    const done = tasks.filter(t=>t.done);
     const today = DateUtils.todayISO();
     const days = [];
+    const isCompletedToday = t => t.completedAt && DateUtils.toISO(new Date(t.completedAt)) === today;
 
-    // Today = overdue + due today + unscheduled (the catch-up day)
+    // Today = overdue + due today + unscheduled (the catch-up day).
+    // Done column for today = anything completed today, or completed & due today.
     const todays = open.filter(t => DateUtils.isOverdue(t) || DateUtils.isToday(t) || !t.date);
-    days.push({ iso: today, label: "Today", short: "Today", isToday: true, tasks: todays });
+    const todaysDone = done.filter(t => isCompletedToday(t) || t.date === today);
+    days.push({ iso: today, label: "Today", short: "Today", isToday: true, tasks: todays, done: todaysDone });
 
-    // Each distinct future date that has a dated task
-    const future = [...new Set(open.filter(t => t.date && t.date > today).map(t => t.date))].sort();
+    // Each distinct future date that has a dated task (active or done)
+    const future = [...new Set(
+      tasks.filter(t => t.date && t.date > today).map(t => t.date)
+    )].sort();
     future.forEach(iso => {
       const dt = open.filter(t => t.date === iso);
-      days.push({ iso, label: DateUtils.fmtDate(iso), short: DateUtils.fmtDate(iso), isToday: false, tasks: dt });
+      const dtDone = done.filter(t => t.date === iso && !isCompletedToday(t));
+      days.push({ iso, label: DateUtils.fmtDate(iso), short: DateUtils.fmtDate(iso), isToday: false, tasks: dt, done: dtDone });
     });
     return days;
   }
@@ -1011,13 +1033,22 @@ const App = (() => {
     const [y,m,dd] = iso.split("-").map(Number);
     $("#sheetWhen").textContent = new Date(y,m-1,dd).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
 
-    if(!day.tasks.length){
-      const nextDated = planDays.find(d => !d.isToday && d.tasks.length);
+    const allTasks = day.tasks.concat(day.done);
+    if(!allTasks.length){
+      const nextDated = planDays.find(d => !d.isToday && (d.tasks.length || d.done.length));
       const hint = nextDated ? ` Next up is ${nextDated.label.toLowerCase()}.` : "";
       $("#sheetBody").innerHTML = `<div class="empty"><div class="ico">${ICON.inbox}</div><h3>Nothing to plan ${day.isToday?"today":"that day"}</h3><p>No tasks fall on this day.${hint}</p></div>`;
       return;
     }
-    if(planCache[iso]){ renderPlan(planCache[iso], day.tasks); return; }
+    if(planCache[iso]){ renderPlan(planCache[iso], allTasks); return; }
+
+    // If there are no active tasks, skip the AI call — just show the done ones.
+    if(!day.tasks.length){
+      const plan = withDone({ note: day.isToday ? "All done for today." : "All done for this day.", morning:[], afternoon:[], evening:[] }, day.done);
+      planCache[iso] = plan;
+      renderPlan(plan, allTasks);
+      return;
+    }
 
     $("#sheetBody").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div>`;
     setLoading(btn, true, "Building…");
@@ -1026,11 +1057,21 @@ const App = (() => {
       const ctx = { isToday: day.isToday, label: day.label, dateISO: iso };
       try{ plan = await AI.planDay(day.tasks, ctx); }
       catch(e){ plan = AI.planDayLocal(day.tasks, ctx); }
+      plan = withDone(plan, day.done);
       planCache[iso] = plan;
-      if(selectedDay === iso) renderPlan(plan, day.tasks);
+      if(selectedDay === iso) renderPlan(plan, allTasks);
     } catch(e){
       $("#sheetBody").innerHTML = `<div class="empty"><h3>Couldn't build a plan</h3><p>Something went wrong. Try again in a moment.</p></div>`;
     } finally { setLoading(btn,false,"Plan my day"); }
+  }
+
+  // Append completed tasks to the end of their natural block (by time-of-day hint).
+  function withDone(plan, doneTasks){
+    (doneTasks||[]).forEach(t => {
+      const block = AI.blockHint(t) || "afternoon";
+      (plan[block] = plan[block] || []).push(t.id);
+    });
+    return plan;
   }
 
   function renderPlan(plan, dayTasks){
@@ -1043,7 +1084,9 @@ const App = (() => {
     const blocks = [["morning","Morning"],["afternoon","Afternoon"],["evening","Evening"]];
     let any=false;
     blocks.forEach(([key,label])=>{
-      const ids = (plan[key]||[]).map(it => typeof it === "string" ? it : (it && it.id)).filter(id => byId[id]);
+      let ids = (plan[key]||[]).map(it => typeof it === "string" ? it : (it && it.id)).filter(id => byId[id]);
+      // active first, completed last within each block
+      ids = ids.sort((a,b) => (byId[a].done?1:0) - (byId[b].done?1:0));
       const block = el("div","block");
       const head = el("div","block-head");
       head.innerHTML = `<span class="tod">${label}</span><span class="line"></span>`;
@@ -1056,9 +1099,9 @@ const App = (() => {
         ids.forEach(id=>{
           const t = byId[id];
           const lvl = t.priority?t.priority.level:"low";
-          const node = el("div","plan-item");
+          const node = el("div","plan-item"+(t.done?" done":""));
           node.innerHTML = `<span class="pi-pri ${lvl}"></span>
-            <div class="pi-body"><div class="pi-ttl">${Render.escapeHTML(t.title)}${t.time?` <span style="color:var(--muted);font-weight:500;font-size:12.5px">· ${DateUtils.fmtTime(t.time)}</span>`:""}</div></div>`;
+            <div class="pi-body"><div class="pi-ttl">${Render.escapeHTML(t.title)}${t.time?` <span class="pi-time">· ${DateUtils.fmtTime(t.time)}</span>`:""}</div></div>`;
           block.appendChild(node);
         });
       }
